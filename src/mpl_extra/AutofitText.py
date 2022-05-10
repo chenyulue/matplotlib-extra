@@ -90,7 +90,7 @@ class AutofitText(mtext.Text):
             self._renderer = renderer
         if not self.get_visible():
             return
-        if self._origin_text == '':
+        if self._origin_text == '' or self._text == '':
             return
         
         transform = self.get_transform()
