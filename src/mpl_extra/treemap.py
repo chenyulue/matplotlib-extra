@@ -9,6 +9,7 @@ import itertools
 import numpy as np
 import pandas as pd
 import matplotlib.patches as mpatches
+import matplotlib.transforms as trans
 from matplotlib import cm
 #import matplotlib.text as mtext
 import matplotlib.colors as mcolors
@@ -16,7 +17,7 @@ import matplotlib.colors as mcolors
 
 import squarify
 
-from . import autofit
+from . import AutofitText as AT
 from . import TreemapContainer as trc
 
 def treemap(
@@ -275,8 +276,8 @@ def draw_subgroup(
             
             marginx = patch.get_linewidth() if padx is None else padx
             marginy = patch.get_linewidth() if pady is None else pady
-            offsetx, = points2dist(marginx, axes.figure.get_dpi(), axes.transData)
-            offsety, = points2dist(marginy, axes.figure.get_dpi(), axes.transData)
+            offsetx = points2dist(marginx, axes.figure.get_dpi(), axes.transData)
+            offsety = points2dist(marginy, axes.figure.get_dpi(), axes.transData)
             (x, y, ha, va) = get_position(xa0, ya0, width, height, place, (offsetx, offsety))
             
             text_kwargs = {k:v for k, v in textprops.items() if k not in extra}
@@ -286,8 +287,8 @@ def draw_subgroup(
             #print('padx: ', padx1, ' pady: ', pady1)
             
             if is_leaf:
-                txtobj = autofit.AutoFitText(
-                    x, y, xmax*width, ymax*height,
+                txtobj = AT.AutofitText(
+                    (x, y), xmax*width, ymax*height,
                     subgroup.loc[idx, '_label_'], 
                     pad=(padx1, pady1), 
                     wrap=wrap, grow=grow,
@@ -299,8 +300,8 @@ def draw_subgroup(
                     subgroup_label = [lbl for lbl in idx if lbl][-1]
                 else:
                     subgroup_label = idx
-                txtobj = autofit.AutoFitText(
-                    x, y, xmax*width, ymax*height, 
+                txtobj = AT.AutofitText(
+                    (x, y), xmax*width, ymax*height, 
                     subgroup_label,
                     pad=(padx1, pady1),
                     wrap=wrap, grow=grow,
@@ -308,7 +309,7 @@ def draw_subgroup(
                     min_fontsize=min_fontsize, 
                     ha=ha, va=va, **text_kwargs)
             
-            txtobj = txtobj.auto_fit(axes)
+            axes.add_artist(txtobj)
             
             text_artists.append(txtobj)      
             
@@ -318,7 +319,8 @@ def draw_subgroup(
 def points2dist(points, dpi, transform):
     inch_per_point = 1 / 72
     pixels = points * inch_per_point * dpi
-    return autofit.pixels2dist(transform, pixels)
+    bbox = trans.Bbox([[0,0],[pixels, 10]]).transformed(transform.inverted())
+    return bbox.width
 
 
 def get_position(x, y, dx, dy, pos, pad):

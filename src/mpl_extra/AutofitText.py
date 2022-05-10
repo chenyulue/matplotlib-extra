@@ -20,19 +20,54 @@ class AutofitText(mtext.Text):
         text='', 
         *,
         pad=0.0, 
-        wrap=False, 
+        reflow=False, 
         grow=False, 
         max_fontsize=None,
         min_fontsize=None,
         show_rect=False,
         **kwargs):
+        """Create a `.AutoFitText` instance at *x*, *y* with the string *text*
+        autofitting into the box with the size of *width* x *height*.
+
+        Parameters
+        ----------
+        xy : (float, float)
+            The x, y coordinates
+        width : float, 
+            The width of the box, which should be positive.
+        height : float
+            The height of the box, which should be positive.
+        text : str, optional
+            The string that needs to be auto-fitted, by default ''
+        pad : float, a 2-tuple or a 4-tuple, optional
+            The surrounding padding in points from the box edges, by default 0.0. A 2-tuple
+            of `(padx, pady)` specifies the horizontal and vertical paddings
+            respectively, while a 4-tuple of (`padleft, padright, padtop, padbottom)` 
+            the padding from the corresponding four edges.
+        reflow : bool, optional
+            If `True`, then the text will be auto-wrapped to fit into the box, by default False
+        grow : bool, optional
+            If `True`, then the auto-wrapped text will be as large as possible, by default False.
+            This option takes effect only when `wrap = True`.
+        max_fontsize : float, optional
+            The maximum fontsize in points, by default None. This option makes sure that
+            the auto-fitted text won't have a fontsize larger than *max_fontsize*.
+        min_fontsize : float, optional
+            The minimum fontsize in points, by default None. This option makes sure that 
+            the auto-fitted text won't have a fontsize smaller than *min_fontsize*.
+        show_rect : bool, optional
+            If True, show the box edge for the debug purpose. Default to False, 
+            and usually you won't need it to be `True`.
+        **kwargs : 
+            Additional kwargs are passed to `~matplotlib.text.Text`.
+        """ 
         x, y = xy
         super().__init__(x, y, text, **kwargs)
         self._origin_text = text    # Keep the original, unwrapped text
         self._width = width
         self._height = height
         self._pad = pad
-        self._wrap = wrap
+        self._reflow = reflow
         self._grow = grow
         self._max_fontsize = max_fontsize
         self._min_fontsize = min_fontsize
@@ -42,12 +77,12 @@ class AutofitText(mtext.Text):
         
     def _validate_text(self):
         ''' Validate the `.AutoFitText` instance to make sure that *width* and *height* 
-        are positive. If wrap = `True`, it only supports the horizontal text object for simplicity.
+        are positive. If reflow = `True`, it only supports the horizontal text object for simplicity.
         '''        
         if self._width < 0 or self._height < 0:
             raise ValueError('`width` and `height` should be a number >= 0.')
-        if self._wrap and super().get_rotation():
-            raise ValueError('`wrap` option currently only supports the horizontal text object for simplicity.')
+        if self._reflow and super().get_rotation():
+            raise ValueError('`reflow` option currently only supports the horizontal text object for simplicity.')
         
     @artist.allow_rasterization
     def draw(self, renderer):
@@ -62,11 +97,14 @@ class AutofitText(mtext.Text):
         
         # Get the width and height of the box in pixels.
         width_in_pixels, height_in_pixels = self._dist2pixels(transform, self._width, self._height)
+        print(f'width:{width_in_pixels}, height:{height_in_pixels}')
         
-        fontsize = mpl.rcParams['font.size']    # txtobj.get_fontsize()
+        fontsize = self.get_fontsize()
         # Get the renderer's dpi, otherwise get the default dpi
         dpi = renderer.dpi  # Todo: This only support RendererAgg. Needs to be improved if a different renderer are chosen.
         original_txt = self._origin_text
+        # Auto fit the original text
+        self._text = original_txt
         
         pad_left, pad_right, pad_top, pad_bottom = self._get_pad(self._pad)
         padleft_in_pixels = renderer.points_to_pixels(pad_left)
@@ -76,7 +114,8 @@ class AutofitText(mtext.Text):
         width_in_pixels -= padleft_in_pixels + padright_in_pixels
         height_in_pixels -= padtop_in_pixels + padbottom_in_pixels
         
-        bbox = self.get_window_extent(renderer)
+        bbox = self.get_window_extent(renderer, dpi=dpi)
+        print(f'bbox:{bbox.bounds}')
         
         if bbox.width == 0 or bbox.height == 0:     # For empty string case
             adjusted_fontsize = 1
@@ -89,7 +128,7 @@ class AutofitText(mtext.Text):
             self._max_fontsize,
             self._min_fontsize)
         
-        if self._wrap:
+        if self._reflow:
             # Split the string into English words and CJK single characters
             words = self._split_words(original_txt)
             fontsizes = []
@@ -117,9 +156,9 @@ class AutofitText(mtext.Text):
                 # Choose the larger fontsize between the wrapped and unwrapped texts.    
                 if adjusted_fontsize < adjusted_size:
                     adjusted_fontsize = adjusted_size
-                    self.set_text('\n'.join(wrap_txt))
+                    self._text = '\n'.join(wrap_txt)
                     
-        self.set_fontsize(adjusted_fontsize)
+        self._fontproperties.set_size(adjusted_fontsize)
         
         # The box region, only for debug usgage.
         if self._show_rect: 
@@ -135,7 +174,9 @@ class AutofitText(mtext.Text):
                 fill=False, ls='--', transform=transform)
             rect.draw(renderer)
             self._rect = rect
-            
+        
+        import time
+        print(time.strftime('%H:%M:%S',time.localtime()))    
         super().draw(renderer)
             
     @property
@@ -144,8 +185,9 @@ class AutofitText(mtext.Text):
     
     @width.setter
     def width(self, value):
-        self._width = value
-        self.stale = True   # So that the figure will re-render the text.
+        if value != self._width:
+            self._width = value
+            self.stale = True   # So that the figure will re-render the text.
         
     @property
     def height(self):
@@ -153,17 +195,19 @@ class AutofitText(mtext.Text):
     
     @height.setter
     def height(self, value):
-        self._height = value
-        self.stale = True
+        if value != self._height:
+            self._height = value
+            self.stale = True
         
     @property
-    def wrap(self):
-        return self._wrap
+    def reflow(self):
+        return self._reflow
         
-    @wrap.setter
-    def wrap(self, value):
-        self._wrap = value
-        self.stale = True
+    @reflow.setter
+    def reflow(self, value):
+        if value != self._reflow:
+            self._reflow = value
+            self.stale = True
         
     @property
     def grow(self):
@@ -171,8 +215,9 @@ class AutofitText(mtext.Text):
     
     @grow.setter
     def grow(self, value):
-        self._grow = value
-        self.stale = True
+        if value != self._grow:
+            self._grow = value
+            self.stale = True
         
     @property
     def max_fontsize(self):
@@ -180,8 +225,9 @@ class AutofitText(mtext.Text):
     
     @max_fontsize.setter
     def max_fontsize(self, value):
-        self._max_fontsize = value
-        self.stale = True
+        if value != self._max_fontsize:
+            self._max_fontsize = value
+            self.stale = True
         
     @property
     def min_fontsize(self):
@@ -189,8 +235,19 @@ class AutofitText(mtext.Text):
     
     @min_fontsize.setter
     def min_fontsize(self, value):
-        self._min_fontsize = value
-        self.stale = True
+        if value != self._min_fontsize:
+            self._min_fontsize = value
+            self.stale = True
+        
+    @property
+    def show_rect(self):
+        return self._show_rect
+    
+    @show_rect.setter
+    def show_rect(self, value):
+        if value != self._show_rect:
+            self._show_rect = value
+            self.stale = True
     
     def _get_wrapped_fontsize(self, txt, height, width, n, linespacing, dpi, fontprops):
         words = self._split_words(txt)
