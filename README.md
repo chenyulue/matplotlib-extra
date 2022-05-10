@@ -12,16 +12,20 @@ Currently there includes the following usefull functions:
 ## Treemap
 
 1. With one level
+
    ![fig2](./examples/fig2.png)
 
 2. With multi-levels
+   
    ![fig3](./examples/fig3.png)
    ![fig4](./examples/fig4.png)
 
 3. Split at the first level
+   
    ![fig5](./examples/fig5.png)
 
 4. Add some pads between the parent tiles and children tiles, and label the parent tiles
+   
    ![fig6](./examples/fig6.png)
 
 For the source code to generate the above figure, please see the [examples](./examples/example.ipynb)
