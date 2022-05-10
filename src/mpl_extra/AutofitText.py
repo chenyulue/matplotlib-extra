@@ -97,7 +97,6 @@ class AutofitText(mtext.Text):
         
         # Get the width and height of the box in pixels.
         width_in_pixels, height_in_pixels = self._dist2pixels(transform, self._width, self._height)
-        print(f'width:{width_in_pixels}, height:{height_in_pixels}')
         
         fontsize = self.get_fontsize()
         # Get the renderer's dpi, otherwise get the default dpi
@@ -115,7 +114,6 @@ class AutofitText(mtext.Text):
         height_in_pixels -= padtop_in_pixels + padbottom_in_pixels
         
         bbox = self.get_window_extent(renderer, dpi=dpi)
-        print(f'bbox:{bbox.bounds}')
         
         if bbox.width == 0 or bbox.height == 0:     # For empty string case
             adjusted_fontsize = 1
@@ -174,9 +172,7 @@ class AutofitText(mtext.Text):
                 fill=False, ls='--', transform=transform)
             rect.draw(renderer)
             self._rect = rect
-        
-        import time
-        print(time.strftime('%H:%M:%S',time.localtime()))    
+            
         super().draw(renderer)
             
     @property
